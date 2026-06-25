@@ -11,7 +11,7 @@ app.get("/", (req, res) => {
   res.send("Hello World!");
 });
 
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = process.env.MONGODB_URI;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -35,14 +35,15 @@ async function run() {
     const books = database.collection("books");
 
 
-    app.get('/users',async(req,res)=>{
+    // app.get('/users',async(req,res)=>{
 
-      const result =await users.find().toArray()
-      res.json(result)
+    //   const result =await users.find().toArray()
+    //   res.json(result)
 
-    })
+    // })
 
-
+// writer related api
+//writer book post api
     app.post("/books", async (req, res) => {
       const bookData = req.body;
 
@@ -54,6 +55,8 @@ async function run() {
       res.json(result);
     });
 
+
+    //writer all books get api
 app.get('/writer/books/:writerId',async (req,res)=>{
 
 
@@ -65,10 +68,35 @@ app.get('/writer/books/:writerId',async (req,res)=>{
   const result =await cursor.toArray()
 
   res.json(result)
-  
+
 
 })
 
+
+
+app.patch('/books/:bookId',async(req,res)=>{
+
+  const {bookId}=req.params
+
+  const updateData=req.body
+const query={_id:new ObjectId(bookId)}
+
+
+
+
+
+
+const result=await books.updateOne(query,{
+  $set:{
+    ...updateData
+  }
+})
+
+console.log('update result:', result)
+
+res.json(result)
+
+})
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
