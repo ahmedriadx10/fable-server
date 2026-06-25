@@ -34,6 +34,15 @@ async function run() {
     const users = database.collection("user");
     const books = database.collection("books");
 
+
+    app.get('/users',async(req,res)=>{
+
+      const result =await users.find().toArray()
+      res.json(result)
+
+    })
+
+
     app.post("/books", async (req, res) => {
       const bookData = req.body;
 
@@ -44,6 +53,22 @@ async function run() {
 
       res.json(result);
     });
+
+app.get('/writer/books/:writerId',async (req,res)=>{
+
+
+  const {writerId}=req.params
+
+
+  const cursor=books.find({ authorId:writerId})
+
+  const result =await cursor.toArray()
+
+  res.json(result)
+  
+
+})
+
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
