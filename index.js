@@ -1,23 +1,18 @@
-const express = require('express');
-const cors=require('cors')
-const app = express()
+const express = require("express");
+const cors = require("cors");
+const app = express();
 
+require("dotenv").config();
+const port = process.env.PORT || 5000;
 
-require('dotenv').config()
-const port = process.env.PORT || 5000
+app.use(cors());
+app.use(express.json());
+app.get("/", (req, res) => {
+  res.send("Hello World!");
+});
 
-app.use(cors())
-app.use(express.json())
-app.get('/', (req, res) => {
-  res.send('Hello World!')
-})
-
-
-
-
-
-const { MongoClient, ServerApiVersion } = require('mongodb');
-const uri =process.env.MONGODB_URI
+const { MongoClient, ServerApiVersion } = require("mongodb");
+const uri = process.env.MONGODB_URI;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -25,7 +20,7 @@ const client = new MongoClient(uri, {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  }
+  },
 });
 
 async function run() {
@@ -33,21 +28,28 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
 
+    // database and database collection
 
-// database and database collection 
+    const database = client.db("fable-ebook-sharing");
+    const users = database.collection("user");
+    const books = database.collection("books");
 
-const database=client.db('fable-ebook-sharing')
-const users=database.collection('user')
+    app.post("/books", async (req, res) => {
+      const bookData = req.body;
 
+      const result = await books.insertOne({
+        ...bookData,
+        createdAt: new Date(),
+      });
 
-
-
-
-
+      res.json(result);
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!",
+    );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
@@ -55,9 +57,6 @@ const users=database.collection('user')
 }
 run().catch(console.dir);
 
-
-
-
 app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`)
-})
+  console.log(`Example app listening on port ${port}`);
+});
