@@ -34,16 +34,13 @@ async function run() {
     const users = database.collection("user");
     const books = database.collection("books");
 
+    app.get("/users", async (req, res) => {
+      const result = await users.find().toArray();
+      res.json(result);
+    });
 
-    // app.get('/users',async(req,res)=>{
-
-    //   const result =await users.find().toArray()
-    //   res.json(result)
-
-    // })
-
-// writer related api
-//writer book post api
+    // writer related api
+    //writer book post api
     app.post("/books", async (req, res) => {
       const bookData = req.body;
 
@@ -55,48 +52,48 @@ async function run() {
       res.json(result);
     });
 
-
     //writer all books get api
-app.get('/writer/books/:writerId',async (req,res)=>{
+    app.get("/writer/books/:writerId", async (req, res) => {
+      const { writerId } = req.params;
+
+      const cursor = books.find({ authorId: writerId });
+
+      const result = await cursor.toArray();
+
+      res.json(result);
+    });
+
+    // writer book status update api
+
+    app.patch("/books/:bookId", async (req, res) => {
+      const { bookId } = req.params;
+
+      const updateData = req.body;
+      const query = { _id: new ObjectId(bookId) };
+
+      const result = await books.updateOne(query, {
+        $set: {
+          ...updateData,
+        },
+      });
+
+    
+
+      res.json(result);
+    });
+
+    app.delete('/books/:bookId',async(req,res)=>{
+
+      const {bookId}=req.params
+
+      const query={_id:new ObjectId(bookId)}
+
+      const result =await books.deleteOne(query) 
 
 
-  const {writerId}=req.params
+      res.json(result)
 
-
-  const cursor=books.find({ authorId:writerId})
-
-  const result =await cursor.toArray()
-
-  res.json(result)
-
-
-})
-
-
-
-app.patch('/books/:bookId',async(req,res)=>{
-
-  const {bookId}=req.params
-
-  const updateData=req.body
-const query={_id:new ObjectId(bookId)}
-
-
-
-
-
-
-const result=await books.updateOne(query,{
-  $set:{
-    ...updateData
-  }
-})
-
-console.log('update result:', result)
-
-res.json(result)
-
-})
+    })
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
