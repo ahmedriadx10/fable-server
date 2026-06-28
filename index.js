@@ -1,12 +1,20 @@
 const express = require("express");
 const cors = require("cors");
+
 const app = express();
 
 require("dotenv").config();
+const {
+  SignJWT,
+  jwtVerify,
+  generateKeyPair,
+  createRemoteJWKSet,
+} = require("jose-cjs");
 const port = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+
 app.get("/", (req, res) => {
   res.send("Hello World!");
 });
@@ -23,6 +31,10 @@ const client = new MongoClient(uri, {
   },
 });
 
+const JWKS = createRemoteJWKSet(
+  new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
+);
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -33,7 +45,8 @@ async function run() {
     const database = client.db("fable-ebook-sharing");
     const users = database.collection("user");
     const books = database.collection("books");
-
+    const purchases = database.collection("purchases");
+    const bookmarks = database.collection("bookmarks");
     app.get("/users", async (req, res) => {
       const result = await users.find().toArray();
       res.json(result);
@@ -70,7 +83,7 @@ async function run() {
 
       const updateData = req.body;
 
-      console.log('updateData from client',updateData)
+      console.log("updateData from client", updateData);
       const query = { _id: new ObjectId(bookId) };
 
       const result = await books.updateOne(query, {
@@ -79,92 +92,159 @@ async function run() {
         },
       });
 
-      console.log('Update result:', result);
+      console.log("Update result:", result);
 
       res.json(result);
     });
 
-
     //writer ebook delete api
-    app.delete('/books/:bookId',async(req,res)=>{
+    app.delete("/books/:bookId", async (req, res) => {
+      const { bookId } = req.params;
 
-      const {bookId}=req.params
+      const query = { _id: new ObjectId(bookId) };
 
-      const query={_id:new ObjectId(bookId)}
+      const result = await books.deleteOne(query);
 
-      const result =await books.deleteOne(query) 
-
-
-      res.json(result)
-
-    })
-
-
-
+      res.json(result);
+    });
 
     // public book data get api
 
-    app.get('/books',async(req,res)=>{
+    app.get("/books", async (req, res) => {
+      const query = { status: "published" };
+      const sortQuery = {};
+      const searchParams = req.query;
+ 
 
+      if (searchParams?.search) {
+        query.$or = [
+          {
+            title: { $regex: searchParams.search, $options: "i" },
+          },
+          {
+            authorName: { $regex: searchParams.search, $options: "i" },
+          },
+        ];
+      }
 
-      const query={status:'published'}
-const sortQuery={}
-const searchParams=req.query
-console.log('search params form client side',searchParams)
+      if (searchParams?.minPrice) {
+        query.price = {};
+        query.price.$gte = searchParams.minPrice;
+      }
 
-if(searchParams?.search){
+      if (searchParams?.maxPrice) {
+        if (!query.price) {
+          query.price = {};
+        }
 
-query.$or=[{
-  title:{$regex:searchParams.search,$options:'i'}
+        query.price.$lte = searchParams.maxPrice;
+      }
 
-},{
-  authorName:{$regex:searchParams.search,$options:'i'}
-}]
+      if (searchParams?.genre) {
+        query.genre = { $regex: searchParams.genre, $options: "i" };
+      }
 
-}
+      if (searchParams?.sortBy) {
+        if (searchParams.sortBy === "Nf") {
+          sortQuery.createdAt = -1;
+        }
 
-if(searchParams?.minPrice){
-  query.price={}
-  query.price.$gte=searchParams.minPrice
-}
+        if (searchParams.sortBy === "Lth") {
+          sortQuery.price = 1;
+        }
+        if (searchParams.sortBy === "Htl") {
+          sortQuery.price = -1;
+        }
+      }
 
-if(searchParams?.maxPrice){
-  if(!query.price){
-    query.price={}
-  }
+      const cursor = books.find(query).sort(sortQuery);
+      const result = await cursor.toArray();
+      res.json(result);
+    });
 
+    const checkUserMiddleWare = async (req, res, next) => {
+      const authorization = req?.headers?.authorization;
 
-  query.price.$lte=searchParams.maxPrice
-}
+      if (!authorization || !authorization.startsWith("Bearer ")) {
+        req.user = null;
+        return next();
+      }
 
+      const token = authorization.split(" ")[1];
 
-if(searchParams?.genre){
+      try {
+        const { payload } = await jwtVerify(token, JWKS);
 
-  query.genre={$regex:searchParams.genre,$options:'i'}
-
-}
-
-if(searchParams?.sortBy){
-
-  if(searchParams.sortBy==='Nf'){
-    sortQuery.createdAt=-1
-  }
-
-  if(searchParams.sortBy==='Lth'){
-    sortQuery.price=1
-  }
-  if(searchParams.sortBy==='Htl'){
-    sortQuery.price=-1
-  }
   
-}
+        req.user = payload;
 
-const cursor=books.find(query).sort(sortQuery)
-const result=await cursor.toArray()
-res.json(result)
+        return next();
+      } catch (error) {
+        req.user = null;
+        return next();
+      }
+    };
 
-    })
-    
+    // book details get api
+
+    app.get("/books/:bookId", checkUserMiddleWare, async (req, res) => {
+      const { bookId } = req.params;
+
+      const query = { _id: new ObjectId(bookId) };
+
+      const result = await books.findOne(query);
+
+      if (!result) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Ebook not found" });
+      }
+      const user = req?.user;
+
+      const { content, ...mainEbookData } = result;
+
+      let purchased = false;
+      let bookmarked = false;
+      let hasAccess = false;
+      let isWriter = false;
+
+      if (user) {
+        if (user?.id === result?.authorId) {
+          isWriter = true;
+          hasAccess = true;
+        } else {
+          const isAvailablePurchase = await purchases.findOne({
+            userId: user?.id,
+            bookId: bookId,
+          });
+
+          if (isAvailablePurchase) {
+            purchased = true;
+            hasAccess = true;
+          }
+
+          const isAvailableBookmark = await bookmarks.findOne({
+            userId: user?.id,
+            bookId:bookId,
+          });
+
+          if (isAvailableBookmark) {
+            bookmarked = true;
+          }
+        }
+      }
+
+      const finalResponseData = {
+        ...mainEbookData,
+        ...(hasAccess && { content }),
+        purchased,
+        bookmarked,
+        hasAccess,
+        isWriter,
+      };
+
+      res.json({ success: true, data: finalResponseData });
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
