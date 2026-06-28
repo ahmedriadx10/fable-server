@@ -63,12 +63,14 @@ async function run() {
       res.json(result);
     });
 
-    // writer book status update api
+    // writer book  update api
 
     app.patch("/books/:bookId", async (req, res) => {
       const { bookId } = req.params;
 
       const updateData = req.body;
+
+      console.log('updateData from client',updateData)
       const query = { _id: new ObjectId(bookId) };
 
       const result = await books.updateOne(query, {
@@ -77,11 +79,13 @@ async function run() {
         },
       });
 
-    
+      console.log('Update result:', result);
 
       res.json(result);
     });
 
+
+    //writer ebook delete api
     app.delete('/books/:bookId',async(req,res)=>{
 
       const {bookId}=req.params
@@ -94,6 +98,73 @@ async function run() {
       res.json(result)
 
     })
+
+
+
+
+    // public book data get api
+
+    app.get('/books',async(req,res)=>{
+
+
+      const query={status:'published'}
+const sortQuery={}
+const searchParams=req.query
+console.log('search params form client side',searchParams)
+
+if(searchParams?.search){
+
+query.$or=[{
+  title:{$regex:searchParams.search,$options:'i'}
+
+},{
+  authorName:{$regex:searchParams.search,$options:'i'}
+}]
+
+}
+
+if(searchParams?.minPrice){
+  query.price={}
+  query.price.$gte=searchParams.minPrice
+}
+
+if(searchParams?.maxPrice){
+  if(!query.price){
+    query.price={}
+  }
+
+
+  query.price.$lte=searchParams.maxPrice
+}
+
+
+if(searchParams?.genre){
+
+  query.genre={$regex:searchParams.genre,$options:'i'}
+
+}
+
+if(searchParams?.sortBy){
+
+  if(searchParams.sortBy==='Nf'){
+    sortQuery.createdAt=-1
+  }
+
+  if(searchParams.sortBy==='Lth'){
+    sortQuery.price=1
+  }
+  if(searchParams.sortBy==='Htl'){
+    sortQuery.price=-1
+  }
+  
+}
+
+const cursor=books.find(query).sort(sortQuery)
+const result=await cursor.toArray()
+res.json(result)
+
+    })
+    
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
