@@ -83,7 +83,7 @@ async function run() {
 
       const updateData = req.body;
 
-      console.log("updateData from client", updateData);
+      // console.log("updateData from client", updateData);
       const query = { _id: new ObjectId(bookId) };
 
       const result = await books.updateOne(query, {
@@ -316,7 +316,7 @@ app.get('/purchase/:userId',async(req,res)=>{
 
   const query={userId:userId}
 // console.log('this is query',query)
-  const cursor=purchases.find(query)
+  const cursor=purchases.find(query).sort({createdAt:-1})
   const result=await cursor.toArray()
 // console.log('result is here',result)
   res.json(result)
@@ -397,7 +397,7 @@ app.get('/sales-history/:writerId',async(req,res)=>{
 
   const query={authorId:writerId}
 
-  const cursor=purchases.find(query)
+  const cursor=purchases.find(query).sort({createdAt:-1})
   const result=await cursor.toArray()
 
   res.json(result)
@@ -405,6 +405,54 @@ app.get('/sales-history/:writerId',async(req,res)=>{
 
 })
 
+
+// admin all ebooks data get api
+
+app.get('/ebooks',async(req,res)=>{
+
+// in future have to add pagination
+
+  const cursor=books.find()
+  const result=await cursor.toArray()
+
+  res.json(result)
+
+
+})
+
+
+//admin ebook delete api 
+
+app.delete('/ebooks/:bookId',async(req,res)=>{
+
+const {bookId}=req.params
+  const query={_id:new ObjectId(bookId)}
+
+  const result=await books.deleteOne(query)
+
+  res.json(result)
+
+
+})
+
+//admin ebook status update api
+
+app.patch('/ebooks/:bookId',async(req,res)=>{
+
+
+  const {bookId}=req.params
+const query={_id:new ObjectId(bookId)}
+
+const updatedData=req.body
+  const result=await books.updateOne(query,{
+    $set:{
+      ...updatedData
+    }
+  })
+
+res.json(result)
+
+})
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
