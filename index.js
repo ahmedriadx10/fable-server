@@ -114,7 +114,6 @@ async function run() {
       const query = { status: "published" };
       const sortQuery = {};
       const searchParams = req.query;
- 
 
       if (searchParams?.search) {
         query.$or = [
@@ -129,7 +128,7 @@ async function run() {
 
       if (searchParams?.minPrice) {
         query.price = {};
-        query.price.$gte = searchParams.minPrice;
+        query.price.$gte = parseFloat(searchParams?.minPrice);
       }
 
       if (searchParams?.maxPrice) {
@@ -137,7 +136,7 @@ async function run() {
           query.price = {};
         }
 
-        query.price.$lte = searchParams.maxPrice;
+        query.price.$lte = parseFloat(searchParams?.maxPrice);
       }
 
       if (searchParams?.genre) {
@@ -175,7 +174,6 @@ async function run() {
       try {
         const { payload } = await jwtVerify(token, JWKS);
 
-  
         req.user = payload;
 
         return next();
@@ -201,6 +199,7 @@ async function run() {
       }
       const user = req?.user;
 
+
       const { content, ...mainEbookData } = result;
 
       let purchased = false;
@@ -225,7 +224,7 @@ async function run() {
 
           const isAvailableBookmark = await bookmarks.findOne({
             userId: user?.id,
-            bookId:bookId,
+            bookId: bookId,
           });
 
           if (isAvailableBookmark) {
@@ -245,6 +244,68 @@ async function run() {
 
       res.json({ success: true, data: finalResponseData });
     });
+
+    // book bookmark post api
+
+    app.post("/book/bookmarks", async (req, res) => {
+      const bookmarkData = req.body;
+
+      const result = await bookmarks.insertOne(bookmarkData);
+
+      res.json(result);
+    });
+
+    //user bookmark get api
+    app.get("/bookmarks/:id", async (req, res) => {
+      const { id } = req.params;
+
+      const query = { userId: id };
+
+      const result = await bookmarks.find(query).toArray();
+
+      // console.log('user bookmarks data:',result)
+      res.json(result);
+    });
+
+    //user bookmark delete api
+
+    app.delete("/bookmarks/:bookId", async (req, res) => {
+      const { bookId } = req.params;
+
+      const query = { _id: new ObjectId(bookId) };
+      const result = await bookmarks.deleteOne(query);
+
+      res.json(result);
+    });
+
+
+//user payment data add api 
+
+app.post('/book/purchases',async(req,res)=>{
+
+
+  const purchaseData=req.body
+  // console.log('this is payment data',purchaseData)
+
+  const isAvailablePaymentData=await purchases.findOne({userId:purchaseData?.userId})
+
+// console.log('is available data',isAvailablePaymentData)
+  if(isAvailablePaymentData){
+    // console.log('gone from available')
+    return 
+  }
+
+
+
+  const result=await purchases.insertOne(purchaseData)
+  console.log('here is insurt result',result)
+
+  res.json(result)
+
+
+})
+
+
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
