@@ -287,24 +287,123 @@ app.post('/book/purchases',async(req,res)=>{
   const purchaseData=req.body
   // console.log('this is payment data',purchaseData)
 
-  const isAvailablePaymentData=await purchases.findOne({userId:purchaseData?.userId})
+  const isAvailablePaymentData=await purchases.findOne({userId:purchaseData?.userId,bookId:purchaseData?.bookId})
 
 // console.log('is available data',isAvailablePaymentData)
   if(isAvailablePaymentData){
     // console.log('gone from available')
-    return 
+    return res.json({success:true,message:'Purchase history already added'})
   }
 
 
 
-  const result=await purchases.insertOne(purchaseData)
-  console.log('here is insurt result',result)
+  const result=await purchases.insertOne({...purchaseData,createdAt:new Date()})
+  // console.log('here is insurt result',result)
 
   res.json(result)
 
 
 })
 
+
+
+//user purchase data get api 
+
+app.get('/purchase/:userId',async(req,res)=>{
+
+
+  const {userId}=req.params
+
+  const query={userId:userId}
+// console.log('this is query',query)
+  const cursor=purchases.find(query)
+  const result=await cursor.toArray()
+// console.log('result is here',result)
+  res.json(result)
+
+
+
+
+})
+
+//user dashboard stats data get api 
+app.get('/dashboard-stats/:userId',async(req,res)=>{
+
+const {userId}=req.params
+
+const [totalBookmarks,totalPurchased,totalAmountPurchased]=await Promise.all([
+bookmarks.countDocuments({userId:userId}),
+purchases.countDocuments({userId:userId}),
+purchases.aggregate([
+  {$match:{userId:userId}},
+  {$group:{
+    _id:null,
+    totalAmount:{$sum:'$price'}
+  }}
+]).toArray()
+
+])
+
+
+const totalAmount=totalAmountPurchased[0]?.totalAmount || 0
+const result={
+  totalBookmarks,
+  totalPurchased,
+  totalAmount
+}
+
+res.json(result)
+
+})
+
+
+//writer dashboard stats data get api
+
+app.get('/dashboard-writer-stats/:writerId',async(req,res)=>{
+
+const {writerId}=req.params
+
+
+const [totalPublished,totalBookmarked,totalSaleAmmout]=await Promise.all([
+
+  books.countDocuments({authorId:writerId}),
+  bookmarks.countDocuments({userId:writerId}),
+  purchases.aggregate([
+    {$match:{authorId:writerId}},{
+      $group:{_id:null,totalSale:{$sum:'$price'}}
+    }
+  ]).toArray()
+
+])
+
+
+
+const totalAmount=totalSaleAmmout[0]?.totalSale || 0
+
+const result={
+  totalPublished,totalBookmarked,
+  totalAmount
+}
+
+
+res.json(result)
+})
+
+
+//writer sales history get api 
+app.get('/sales-history/:writerId',async(req,res)=>{
+
+  const {writerId}=req.params
+
+  const query={authorId:writerId}
+
+  const cursor=purchases.find(query)
+  const result=await cursor.toArray()
+
+  res.json(result)
+
+
+})
 
 
     // Send a ping to confirm a successful connection
