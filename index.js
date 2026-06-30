@@ -161,6 +161,31 @@ async function run() {
       res.json(result);
     });
 
+    // books genres get api
+
+    app.get('/books/genres',async(req,res)=>{
+
+
+const cursor=books.aggregate([
+{$group:{
+  _id:'$genre'
+}},
+{
+  $project:{
+    _id:0,
+    genre:'$_id'
+  }
+}
+])
+
+
+const result=await cursor.toArray()
+
+res.json(result)
+
+
+    })
+
     const checkUserMiddleWare = async (req, res, next) => {
       const authorization = req?.headers?.authorization;
 
@@ -453,6 +478,160 @@ const updatedData=req.body
 res.json(result)
 
 })
+
+
+//admin all transcation/purchase data get api
+
+app.get('/purchases/all-transaction',async(req,res)=>{
+
+const cursor=purchases.find().sort({createdAt:-1})
+  const result=await cursor.toArray()
+
+res.json(result)
+
+})
+
+
+//admin dashboard all analytics data get api 
+
+app.get('/analytics/dashboard-admin', async (req, res) => {
+  try {
+    // ==========================================
+    // ১. ডেট রেঞ্জ সেটআপ (গত ৬ মাসের জন্য)
+    // ==========================================
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+    sixMonthsAgo.setDate(1);
+    sixMonthsAgo.setHours(0, 0, 0, 0);
+
+    // ==========================================
+    // ২. PROMISE.ALL-এর ভেতর সব কুয়েরি একসাথে রান করা
+    // ==========================================
+    const [
+      totalUsers,
+      totalWriters,
+      totalEbookSold,
+      totalRevenue,
+      salesAggregation, // গত ৬ মাসের সেলস ডাটা
+      genreAggregation  // জেনরা ভিত্তিক পার্সেন্টেজ ডাটা
+    ] = await Promise.all([
+      users.countDocuments(),
+      users.countDocuments({ role: 'writer' }),
+      purchases.countDocuments({ costType: 'payment' }),
+      purchases.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalSale: { $sum: '$price' }
+          }
+        }
+      ]).toArray(),
+      
+      // ক) Monthly Sales Aggregation (From purchases collection)
+      purchases.aggregate([
+        {
+          $match: {
+            createdAt: { $gte: sixMonthsAgo },
+            costType: 'payment' // শুধু পেইড পারচেজ কাউন্ট করতে চাইলে
+          }
+        },
+        {
+          $group: {
+            _id: {
+              year: { $year: "$createdAt" },
+              month: { $month: "$createdAt" }
+            },
+            totalSales: { $sum: "$price" } // আপনার স্কিমা অনুযায়ী এখানে price যোগ হচ্ছে
+          }
+        },
+        {
+          $sort: { "_id.year": 1, "_id.month": 1 }
+        }
+      ]).toArray(),
+
+      // খ) Ebook Genres Aggregation (From books collection)
+      books.aggregate([
+        {
+          $group: {
+            _id: "$genre",
+            count: { $sum: 1 }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalBooks: { $sum: "$count" },
+            genres: { $push: { genre: "$_id", count: "$count" } }
+          }
+        },
+        {
+          $unwind: "$genres"
+        },
+        {
+          $project: {
+            _id: 0,
+            genre: "$genres.genre",
+            value: "$genres.count",
+            percentage: {
+              $round: [
+                { $multiply: [ { $divide: ["$genres.count", "$totalBooks"] }, 100 ] },
+                0
+              ]
+            }
+          }
+        },
+        {
+          $sort: { percentage: -1 }
+        }
+      ]).toArray()
+    ]);
+
+    // ==========================================
+    // ৩. শূন্য (0) সেলস থাকা মাসগুলোর ফরম্যাটিং লজিক
+    // ==========================================
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const monthlySales = [];
+
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      
+      const currentYear = d.getFullYear();
+      const currentMonthNum = d.getMonth() + 1;
+      const currentMonthName = monthNames[d.getMonth()];
+
+      // ডাটাবেজের বছর এবং মাসের সাথে লুপের বছর ও মাস মিলানো
+      const foundMonth = salesAggregation.find(
+        item => item._id.year === currentYear && item._id.month === currentMonthNum
+      );
+
+      monthlySales.push({
+        month: currentMonthName,
+        sales: foundMonth ? parseFloat(foundMonth.totalSales.toFixed()) : 0 // ডেটা না থাকলে ০ সেট হবে
+      });
+    }
+
+    // সর্বমোট রেভিনিউ ভ্যালু অ্যাসাইন করা
+    const totalSaleAmount = totalRevenue[0]?.totalSale || 0;
+
+    // ==========================================
+    // ৪. ফাইনাল রেসপন্স অবজেক্ট
+    // ==========================================
+    res.json({
+      success: true,
+      totalUsers,
+      totalWriters,
+      totalEbookSold,
+      totalSaleAmount,
+      monthlySales,   // লাইন চার্টের জন্য গত ৬ মাসের রেডি ডেটা
+      popularGenres: genreAggregation // ডোনাট চার্টের জন্য জেনরা পার্সেন্টেজ ডেটা
+    });
+
+  } catch (error) {
+    console.error("Dashboard Analytics Error:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
