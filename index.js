@@ -156,9 +156,35 @@ async function run() {
         }
       }
 
-      const cursor = books.find(query).sort(sortQuery);
-      const result = await cursor.toArray();
-      res.json(result);
+      // const cursor = books.find(query).sort(sortQuery);
+      // const result = await cursor.toArray();
+      // res.json(result);
+
+
+      const page=Math.max(parseInt(searchParams?.page) ||1,1) // preventing negative page number from client side
+      const perPage=8
+      const skip=(page-1)*perPage
+
+
+const [totalBooksCount,booksData]=await Promise.all([
+
+
+  books.countDocuments(query),
+  books.find(query).sort(sortQuery).skip(skip).limit(perPage).toArray()
+
+])
+
+
+
+const result={
+  totalBooks:totalBooksCount,
+  books:booksData,
+}
+
+
+res.json(result)
+
+
     });
 
     // books genres get api
