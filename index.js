@@ -187,6 +187,108 @@ res.json(result)
 
     });
 
+
+
+    // featured ebooks 
+
+    // only 6 ebook have to send as a response and those 6 ebook will be selected depending on the lateast published
+app.get('/home',async(req,res)=>{
+
+
+const [featuredBooks,topWriters,availableGenres]=await Promise.all([
+
+  books.find({status:'published'}).sort({createdAt:-1}).limit(6).toArray(),
+   purchases.aggregate([
+  {
+    $group: {
+      _id: "$authorId",
+      authorName: { $first: "$authorName" }, 
+      // Assuming authorName is consistent for each authorId so i applied $first operator to get the first occurrence of authorName for each authorId
+      totalSales: { $sum: 1 },
+      totalRevenue: { $sum: "$price" }
+    }
+  },
+
+  {
+    $sort: {
+      totalSales: -1
+    }
+  },
+
+  {
+    $limit: 3
+  },
+
+  {
+    $addFields: {
+      authorObjectId: {
+        $toObjectId: "$_id"
+      }
+    }
+  },
+
+  {
+    $lookup: {
+      from: "user",
+      localField: "authorObjectId",
+      foreignField: "_id",
+      as: "writer"
+    }
+  },
+
+  {
+    $unwind: "$writer"
+  },
+
+  {
+    $lookup: {
+      from: "books",
+      localField: "_id",
+      foreignField: "authorId",
+      as: "books"
+    }
+  },
+
+  {
+    $project: {
+      _id: 0,
+      writerName: "$authorName",
+      writerImage:'$writer.image',
+      totalBooks: { $size: "$books" },
+      totalSales: 1,
+      totalRevenue: 1
+    }
+  }
+]).toArray(),
+books.aggregate([
+{
+  $group:{
+    _id:'$genre'
+  }
+},
+{$project:{
+  _id:0,
+  genre:'$_id'
+}},
+{$limit:5}
+
+]).toArray()
+
+])
+
+
+const result={
+  featuredBooks,
+  topWriters,
+  availableGenres
+}
+
+
+res.json(result)
+
+})
+
+
     // books genres get api
 
     app.get('/books/genres',async(req,res)=>{
@@ -658,6 +760,37 @@ app.get('/analytics/dashboard-admin', async (req, res) => {
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 });
+
+
+//user role update api 
+
+app.patch('/users/:userId',async(req,res)=>{
+
+try {
+    const { userId } = req.params;
+    const { role } = req.body; // সম্পূর্ণ বডি না নিয়ে শুধু role নিন
+
+    // সিকিউরিটি গার্ড: কেউ যদি 'admin' বা অন্য কিছু পাঠায়, এখানেই ব্লক
+    if (role === 'admin' || !['user', 'writer'].includes(role)) {
+      return res.status(403).json({ message: "Invalid or unauthorized role selection" });
+    }
+
+    const query = { _id: new ObjectId(userId) };
+    const result = await users.updateOne(query, {
+      $set: { role: role } // শুধু অনুমোদিত রোলটিই আপডেট হবে
+    });
+
+    if (!result?.acknowledged) {
+      return res.status(400).json({ message: "Failed to update role" });
+    }
+
+    res.send({ success: true, result });
+  } catch (error) {
+    res.status(500).json({ message: "Internal server error" });
+  }
+
+})
+
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
