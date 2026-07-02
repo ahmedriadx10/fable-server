@@ -515,7 +515,7 @@ async function run() {
     // book bookmark post api
 
     app.post("/book/bookmarks", authorizationMiddleware, async (req, res) => {
-      if (req?.user?.role !== "user" || req?.user?.role !== "writer") {
+      if (req?.user?.role==='admin') {
         return res.status(403).json({ message: "Forbidden access" });
       }
 
