@@ -515,7 +515,7 @@ async function run() {
     // book bookmark post api
 
     app.post("/book/bookmarks", authorizationMiddleware, async (req, res) => {
-      if (req?.user?.role==='admin') {
+      if (req?.user?.role === "admin") {
         return res.status(403).json({ message: "Forbidden access" });
       }
 
@@ -722,7 +722,7 @@ async function run() {
       async (req, res) => {
         // in future have to add pagination
 
-        const cursor = books.find();
+        const cursor = books.find().sort({createdAt:-1});
         const result = await cursor.toArray();
 
         res.json(result);
