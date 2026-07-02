@@ -50,6 +50,7 @@ async function run() {
 
     const authorizationMiddleware = async (req, res, next) => {
       const authorization = req?.headers?.authorization;
+console.log('authorization is here',authorization)
 
       if (!authorization || !authorization.startsWith("Bearer ")) {
         return res.status(401).json({ message: "Unauthorized access" });
@@ -57,6 +58,7 @@ async function run() {
 
       const token = authorization.split(" ")[1];
 
+      console.log('token is here',token)
       if (!token) {
         return res.status(401).json({ message: "Unauthorized access" });
       }
@@ -162,7 +164,7 @@ async function run() {
             {
               projection: {
                 _id: 1,
-                titie: 1,
+                title: 1,
                 coverImage: 1,
                 genre: 1,
                 authorId: 1,
