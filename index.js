@@ -50,50 +50,50 @@ async function run() {
 
     const authorizationMiddleware = async (req, res, next) => {
       const authorization = req?.headers?.authorization;
-console.log('authorization is here',authorization)
+      console.log("authorization is here", authorization);
 
-      // if (!authorization || !authorization.startsWith("Bearer ")) {
-      //   return res.status(401).json({ message: "Unauthorized access" });
-      // }
+      if (!authorization || !authorization.startsWith("Bearer ")) {
+        return res.status(401).json({ message: "Unauthorized access" });
+      }
 
-      // const token = authorization.split(" ")[1];
+      const token = authorization.split(" ")[1];
 
-      // console.log('token is here',token)
-      // if (!token) {
-      //   return res.status(401).json({ message: "Unauthorized access" });
-      // }
+      console.log("token is here", token);
+      if (!token || token === "undefined") {
+        return res.status(401).json({ message: "Unauthorized access" });
+      }
 
-      // try {
-      //   const { payload } = await jwtVerify(token, JWKS);
+      try {
+        const { payload } = await jwtVerify(token, JWKS);
 
-      //   req.user = payload;
-      //   next();
-      //   return;
-      // } catch (error) {
-      //   return res.status(401).json({ message: "Unauthorized access" });
-      // }
+        req.user = payload;
+        next();
+        return;
+      } catch (error) {
+        return res.status(401).json({ message: "Unauthorized access" });
+      }
     };
 
     const verifyUserRoleMiddleware = (req, res, next) => {
-      // if (req?.user?.role !== "user") {
-      //   return res.status(403).json({ message: "Forbidden access" });
-      // }
+      if (req?.user?.role !== "user") {
+        return res.status(403).json({ message: "Forbidden access" });
+      }
 
       next();
     };
 
     const verifyWriterRoleMiddleware = (req, res, next) => {
-      // if (req?.user?.role !== "writer") {
-      //   return res.status(403).json({ message: "Forbidden access" });
-      // }
+      if (req?.user?.role !== "writer") {
+        return res.status(403).json({ message: "Forbidden access" });
+      }
 
       next();
     };
 
     const verifyAdminRoleMiddleware = (req, res, next) => {
-      // if (req?.user?.role !== "admin") {
-      //   return res.status(403).json({ message: "Forbidden access" });
-      // }
+      if (req?.user?.role !== "admin") {
+        return res.status(403).json({ message: "Forbidden access" });
+      }
 
       next();
     };
