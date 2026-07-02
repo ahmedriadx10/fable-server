@@ -140,6 +140,59 @@ async function run() {
       },
     );
 
+    // writer profile and books get api
+
+    app.get("/writer/:writerId", async (req, res) => {
+      const { writerId } = req.params;
+
+      const [writerData, writerEbooks, writerTotalBooks] = await Promise.all([
+        users.findOne(
+          { _id: new ObjectId(writerId) },
+          {
+            projection: {
+              name: 1,
+              image: 1,
+              email: 1,
+            },
+          },
+        ),
+        books
+          .find(
+            { authorId: writerId, status: "published" },
+            {
+              projection: {
+                _id: 1,
+                titie: 1,
+                coverImage: 1,
+                genre: 1,
+                authorId: 1,
+                summary: 1,
+                authorName: 1,
+              },
+            },
+          )
+          .toArray(),
+        books
+          .aggregate([
+            { $match: { authorId: writerId, status: "published" } },
+            { $group: { _id: null, totalPublished: { $sum: 1 } } },
+            {
+              $project: {
+                _id: 0,
+                totalPublished: 1,
+              },
+            },
+          ])
+          .toArray(),
+      ]);
+
+      res.json({
+        writerData,
+        writerEbooks,
+        writerTotalBooks,
+      });
+    });
+
     // writer book  update api
 
     app.patch(
